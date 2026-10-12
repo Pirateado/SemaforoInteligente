@@ -1,0 +1,238 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Semáforo Inteligente · Av. Javier Prado</title>
+<style>
+:root{--bg:#0b1220;--card:#131c2e;--bd:#22304a;--tx:#e6edf7;--mu:#8ea0bd;--g:#22c55e;--a:#f59e0b;--r:#ef4444;--ac:#38bdf8}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px system-ui,sans-serif}
+header{padding:14px 20px;border-bottom:1px solid var(--bd)}h1{font-size:18px;margin:0}.mu{color:var(--mu);font-size:12px}
+main{display:grid;grid-template-columns:300px 1fr;gap:14px;padding:14px;max-width:1300px;margin:auto}@media(max-width:900px){main{grid-template-columns:1fr}}
+body.wide nav,body.wide main{max-width:none!important}body.wide main{grid-template-columns:minmax(0,1fr);padding:10px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:14px}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--mu);margin:0 0 10px}
+label{display:block;margin:8px 0 2px;font-size:12px;color:var(--mu)}
+select,input,button{width:100%;background:#0e1626;color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px}
+button{cursor:pointer;background:var(--ac);color:#04121f;font-weight:600;margin-top:8px}button.s{background:#1e2b44;color:var(--tx)}button:disabled{opacity:.5}
+.kp{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}.kp div{background:#0e1626;border-radius:8px;padding:8px;text-align:center;font-size:11px;color:var(--mu)}.kp b{display:block;font-size:20px;color:var(--tx)}
+canvas{width:100%;display:block;border-radius:8px;background:#0e1626}.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:700px){.two{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse}th,td{padding:7px;text-align:right;border-bottom:1px solid var(--bd)}th:first-child,td:first-child{text-align:left}th{cursor:pointer;color:var(--mu);font-size:12px}
+.pos{color:var(--g)}.neg{color:var(--r)}.al{padding:6px 8px;margin:4px 0;border-left:3px solid var(--a);background:#1d1a10;border-radius:4px;font-size:12px}.al.ok{border-color:var(--g);background:#0f1d15}
+#bar{height:8px;background:#0e1626;border-radius:4px;overflow:hidden;margin-top:8px}#bi{height:100%;width:0;background:var(--ac)}#ml{font-size:12px;line-height:1.7}
+.three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}@media(max-width:1100px){.three{grid-template-columns:minmax(0,1fr)}}
+/* escenas: lienzo cuadrado que se adapta al ancho disponible (mundo 520x520 escalado de forma uniforme: nada se recorta ni se deforma) */
+#cv{aspect-ratio:1/1;height:auto;max-width:min(100%,80vh);margin:0 auto}
+#bt3 .card{margin-bottom:0;padding:10px}#bt3 canvas{aspect-ratio:1/1;height:auto;max-width:min(100%,84vh);margin:8px auto 0}
+#bt3 .kp{gap:6px}#bt3 .kp div{padding:6px 2px;font-size:10px}#bt3 .kp b{font-size:clamp(14px,1.6vw,20px)}
+.tb2{display:flex;gap:10px;align-items:end;flex-wrap:wrap}.tb2>div{min-width:110px}.tb2 button{width:auto;padding:7px 18px;margin:0}.tb2 input,.tb2 select{width:auto;min-width:90px}
+#cl{display:none}body.wide aside{position:fixed;top:0;right:0;bottom:0;width:min(340px,92vw);overflow:auto;background:var(--bg);border-left:1px solid var(--bd);padding:14px;z-index:30;box-shadow:-10px 0 30px rgba(0,0,0,.5)}body.wide #cl{display:block;margin:0 0 12px}
+[hidden]{display:none!important}</style></head><body>
+<header><h1>🚦 Semáforo Inteligente · Cruce crítico Av. Javier Prado</h1><span class="mu">Agentes Inteligentes · USIL 2026 · Base vs Reflejo vs A* vs Híbrido (KNN + K-Means + A*)</span></header>
+<nav style="padding:8px 14px;display:flex;gap:8px;max-width:1300px;margin:auto"><button class="s" id="t1" style="width:auto;padding:7px 16px;margin:0">Simulador</button><button class="s" id="t2" style="width:auto;padding:7px 16px;margin:0">⚔ Enfrentamiento</button></nav>
+<main>
+<aside>
+<button id="cl" class="s">✕ Cerrar panel de parámetros</button>
+<div class="card"><h2>Parámetros</h2>
+<label>Escenario</label><select id="sc"><option value="valle">Valle (0,08/0,08)</option><option value="sim">Punta simétrica (0,20/0,20)</option><option value="asi" selected>Punta asimétrica (0,26/0,10)</option><option value="tran">Transición valle→punta</option></select>
+<div class="mu" id="gm">Cruce de 2 carriles simultáneos (1 por eje, Javier Prado y transversal). Todos los vehículos siguen recto.</div>
+<div class="mu" id="dm"></div><label>Modo (vista en vivo)</label><select id="md"><option value="0">Tiempos fijos 30/30</option><option value="1">Reflejo con estado</option><option value="2">Búsqueda A*</option><option value="3" selected>Híbrido ML + A*</option></select>
+<label>Verde mínimo (s)</label><input id="mg" type="number" value="10" min="5" max="40">
+<label>Verde máximo (s)</label><input id="xg" type="number" value="60" min="15" max="120">
+<label>K histéresis (reflejo)</label><input id="kk" type="number" value="1.2" step="0.1" min="1" max="4">
+<label>Horizonte A* (s)</label><input id="hh" type="number" value="40" step="5" min="10" max="60">
+<label>k de KNN</label><input id="kn" type="number" value="5" min="1" max="20">
+<label>Clústeres K-Means</label><input id="km" type="number" value="3" min="2" max="6">
+<label>Peso ML en el híbrido (0–1)</label><input id="ww" type="number" value="0.5" step="0.1" min="0" max="1">
+<label>Semilla inicial / N.º de semillas</label><div style="display:flex;gap:6px"><input id="s0" type="number" value="1"><input id="ns" type="number" value="30" min="1" max="100"></div><label>Velocidad (s simulados por s)</label><input id="sp" type="number" value="8" min="1" max="200">
+<button id="st">▶ Iniciar</button><button id="rs" class="s">Reiniciar</button><button id="go">Correr experimento (todos los escenarios × 4 modos)</button>
+<div id="bar"><div id="bi"></div></div><div class="mu" id="bt"></div></div>
+<div class="card"><h2>Alertas de hiperparámetros</h2><div id="al"></div></div>
+</aside>
+<section id="v1">
+<div class="card"><div class="kp"><div><b id="k1">0 s</b>tiempo</div><div><b id="k2">EO</b>fase</div><div><b id="k3">0,0 s</b>espera media</div><div><b id="k4">0</b>cola máx.</div></div>
+<canvas id="cv" width="800" height="800"></canvas></div>
+<div class="two"><div class="card"><h2>Cola total en vivo</h2><canvas id="c1" width="600" height="180"></canvas></div><div class="card"><h2>Espera media (30 semillas)</h2><canvas id="c2" width="600" height="180"></canvas></div></div>
+<div class="card"><h2>Módulo de Machine Learning</h2><div id="ml"></div></div>
+<div class="card"><h2>Comparación (clic en encabezado para ordenar)</h2>
+<table><thead><tr><th>Técnica</th><th data-k="w">Espera media (s)</th><th data-k="m">Cola máx.</th><th data-k="c">Cómputo/decisión (ms)</th><th data-k="imp">Mejora vs base</th><th data-k="win">Gana al base</th></tr></thead><tbody id="tb"><tr><td colspan="6" class="mu">Pulsa «Correr 30 semillas…» para llenar la tabla.</td></tr></tbody></table>
+<button id="rd" class="s">⬇ Descargar README.md con resultados</button></div>
+</section>
+<section id="v2" hidden><div class="card"><div class="tb2"><div><label>Escenario</label><select id="bsc"></select></div><div><label>Semilla</label><input id="bs" type="number" value="1" style="width:90px"></div><div><label>Velocidad (s/s)</label><input id="bsp" type="number" value="8" min="1" max="200" style="width:90px"></div><button id="bst">▶ Iniciar</button><button id="brs" class="s">↺ Reiniciar</button><button id="bpar" class="s">⚙ Parámetros</button></div><div class="mu" style="margin-top:8px">Mismo escenario, duración y llegadas (misma semilla) para los tres. Cambia el controlador de cada escena, p. ej. por el Híbrido.</div></div><div class="three" id="bt3"></div></section></main>
+<script>
+/* ÍNDICE (buscar etiquetas): [B0] utilidades · [B1] PEAS · [B2] ML: KNN + K-Means · [B3] entorno/simulación
+   [B4] agentes: base, reflejo · [B5] búsqueda A* · [B6] híbrido · [B7] experimentos 30 semillas · [B8] UI/README
+   PEAS = Performance, Environment, Actuators, Sensors (el enunciado decía "Percepción, Estado, Acciones, Sensor"). */
+
+// ===== [B0] UTILIDADES =====
+const $=id=>document.getElementById(id),V=id=>+$(id).value;
+const mean=a=>a.reduce((u,v)=>u+v,0)/a.length,sd=a=>{const m=mean(a);return Math.sqrt(mean(a.map(v=>(v-m)**2)))};
+function rng(s){return()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}} // mulberry32 con semilla
+const gauss=r=>Math.sqrt(-2*Math.log(r()+1e-12))*Math.cos(6.283185*r());
+const poisson=(l,r)=>{let L=Math.exp(-l),k=0,p=1;do{k++;p*=r()}while(p>L);return k-1};
+const d2=(a,b)=>(a[0]-b[0])**2+(a[1]-b[1])**2,near=(p,C)=>C.reduce((b,c,i)=>d2(p,c)<d2(p,C[b])?i:b,0);
+
+// ===== [B1] PEAS =====
+// Performance: minimizar espera media por vehículo (s) y cola máxima.  Environment: cruce de 2 ejes (0=Javier Prado E-O, 1=transversal), llegadas Poisson.
+// Actuators: mantener fase / cambiar fase (cuesta LOST=3 s de ámbar+todo-rojo).  Sensors: longitud de cola por eje (q) y llegadas por segundo.
+// Un carril por eje (los 2 carriles simultáneos). Todos los vehículos siguen recto: no hay giros ni vías auxiliares.
+const SAT=.42,LOST=3,T=1800,DT=5; // SAT: veh/s que descargan en verde · T: 30 min simulados · DT: A* decide cada 5 s
+const SC={valle:{n:'Valle',l:[.08,.08],h:14,d:2,x:'Martes 14 h: poca demanda en ambos ejes.'},sim:{n:'Punta simétrica',l:[.20,.20],h:18,d:4,x:'Viernes 18 h: demanda alta y equilibrada.'},asi:{n:'Punta asimétrica',l:[.26,.10],h:8,d:1,x:'Lunes 8 h: la Av. Javier Prado carga mucho más que la transversal.'},tran:{n:'Transición valle→punta',l:[.08,.08],h:6,d:1,t2:900,l2:[.26,.10],h2:8,x:'Lunes 6 h→8 h: a los 900 s la demanda salta de valle a punta. El ML conoce la hora; el reflejo debe enterarse tarde.'}};
+const MODES=['Tiempos fijos 30/30','Reflejo con estado','Búsqueda A*','Híbrido ML+A*'],SH=['Base','Reflejo','A*','Híbrido'];
+
+// ===== [B2] MACHINE LEARNING =====
+// Datos sintéticos "históricos": demanda (veh/s por eje) según hora y día, con ruido gaussiano 12 %.
+const prof=(h,d)=>{const s=d>=5?.6:1;return((h>=7&&h<=9)?[.26,.10]:(h>=17&&h<=20)?[.20,.20]:[.08,.08]).map(v=>v*s)};
+const lab=c=>c[0]+c[1]<.2?'Hora Valle':Math.abs(c[0]-c[1])>.08?'Punta Mañana (asim.)':'Punta Tarde/Noche (sim.)';
+function trainML(k,KM){
+ const r=rng(42),D=[];
+ for(let d=0;d<7;d++)for(let h=0;h<24;h++)for(let j=0;j<4;j++)D.push({h,d,y:prof(h,d).map(v=>Math.max(.01,v*(1+.12*gauss(r))))});
+ // --- Regresión KNN: distancia = hora circular + penalidad fin de semana + día; promedia los k vecinos ---
+ const knn=(h,d,S)=>{const n=S.map(e=>({e,x:Math.min(Math.abs(e.h-h),24-Math.abs(e.h-h))+2*((e.d>=5)!=(d>=5))+.3*Math.abs(e.d-d)})).sort((a,b)=>a.x-b.x).slice(0,k);return[0,1].map(i=>mean(n.map(z=>z.e.y[i])))};
+ const te=D.filter((_,i)=>i%7==0),tr=D.filter((_,i)=>i%7); // hold-out ~14 %
+ const mae=mean(te.map(e=>{const p=knn(e.h,e.d,tr);return(Math.abs(p[0]-e.y[0])+Math.abs(p[1]-e.y[1]))/2}));
+ // --- K-Means (inicio aleatorio con semilla + 25 iteraciones de Lloyd) sobre puntos (λ_EO, λ_T) ---
+ const P=D.map(e=>e.y);let C=[P[Math.floor(r()*P.length)]];
+ while(C.length<KM){let b=P[0],bd=-1;P.forEach(p=>{const m=Math.min(...C.map(c=>d2(p,c)));if(m>bd){bd=m;b=p}});C.push(b)} // el más lejano
+ for(let it=0;it<25;it++){const as=P.map(p=>near(p,C));C=C.map((c,i)=>{const m=P.filter((_,j)=>as[j]==i);return m.length?[0,1].map(a=>mean(m.map(p=>p[a]))):c})}
+ const pr=(h,d)=>knn(h,d,D);
+ return{mae,C,lab:C.map(lab),predict:pr,prior:(h,d)=>C[near(pr(h,d),C)]}; // prior = centroide del perfil al que pertenece la predicción
+}
+let ML,RES={};
+
+// ===== [B3] ENTORNO / SIMULACIÓN: motor microscópico, 1 carril por eje, todos siguen recto =====
+// x = distancia del FRENTE del auto a su línea de pare (x>0 antes de la línea, x<0 después). Cada eje usa el carril derecho de su calzada
+// (EO va hacia la derecha por la mitad sur; transversal baja por la mitad oeste) → ambos solo se cruzan en el cuadrado Q (LW×LW).
+const U=1.25,LW=26*U,E=10*U,WORLD=520,HALF=WORLD/2,SL=HALF-LW-E,CC=['#38bdf8','#f472b6','#facc15','#a78bfa','#34d399','#fb923c','#e2e8f0']; // carril, hueco línea de pare–calzada, mundo (px), línea de pare desde el borde
+const SUB=5,LEN=20*U,S0=6*U,S0L=3*U,VMAX=45*U,AC=18*U,B=30*U,BH=70*U,TAU=1; // U: factor de escala visual (largos y velocidades se escalan juntos → la dinámica en segundos no cambia)
+// // micro-pasos/s, largo, hueco mín., hueco a la línea, vel. máx., aceleración, frenado de diseño, frenado máx. físico, reacción
+const ROADL=SL+LEN+2,EXITL=WORLD-SL+LEN; // largo de aproximación (el auto nace fuera de pantalla) y distancia tras la cual sale de pantalla
+const safe=g=>g<=0?0:-B*TAU+Math.sqrt((B*TAU)**2+2*B*g); // velocidad segura (tipo Krauss) para poder frenar detrás del líder / en la línea
+const newSim=(sc,seed,mode)=>({sc,mode,a:[0,0],r:rng(seed*7919+1),m:0,t:0,ph:0,q:[0,0],p:0,g:0,lost:0,id:0,W:[],ema:[.1,.1],cap:[SAT*.85,SAT*.85],cs:[0,0],arr:0,srv:0,sw:0,mx:0,ms:0,nd:0,hist:[],bl:[[],[]],ln:[[],[]],pri:[ML.prior(sc.h,sc.d),ML.prior(sc.h2??sc.h,sc.d)]}); // cap: capacidad de descarga aprendida
+const lightOf=(s,ax)=>s.lost==0?(ax==s.p?'G':'R'):(ax!=s.p&&s.lost>LOST-2?'A':'R'); // ámbar 2 s + todo-rojo 1 s = LOST
+const qOf=(s,ax)=>s.bl[ax].length+s.ln[ax].filter(c=>c.x>0).length; // SENSOR: vehículos sin atender (cola + los que esperan entrar)
+const inQ=(s,ax)=>s.ln[ax].some(c=>c.x<-E+4&&c.x>-(E+LW+LEN)-4); // ¿hay un auto del eje ax dentro del cuadrado de cruce?
+function step(s,P){
+ if(s.m%SUB==0){s.t=s.m/SUB; // --- lógica por segundo: llegadas (misma secuencia con la misma semilla), sensores, decisión del agente
+  s.ph=s.sc.t2&&s.t>=s.sc.t2?1:0;
+  for(let i=0;i<2;i++){const a=poisson((s.ph?s.sc.l2:s.sc.l)[i],s.r),us=[];s.a[i]=a;s.arr+=a;for(let k=0;k<a;k++)us.push(s.r());us.sort((u,v)=>u-v);us.forEach(u=>s.bl[i].push({tg:s.t+u}));s.ema[i]+=.02*(a-s.ema[i]);s.q[i]=qOf(s,i)}
+  for(let i=0;i<2;i++){if(lightOf(s,i)=='G'&&s.g>2&&s.q[i]>=3)s.cap[i]+=.05*(s.cs[i]-s.cap[i]);s.cs[i]=0} // el agente aprende la capacidad de descarga observada
+  if(s.lost>0)s.lost--;else s.g++;
+  if(s.lost==0&&(s.mode<2||s.t%DT==0)){const t0=performance.now();const sw=decide(s,P);s.ms+=performance.now()-t0;s.nd++;if(sw){s.p^=1;s.g=0;s.lost=LOST;s.sw++}}
+  s.mx=Math.max(s.mx,s.q[0],s.q[1]);if(s.t%5==0)s.hist.push(s.q[0]+s.q[1])}
+ const dt=1/SUB,tm=s.m/SUB,busy=[inQ(s,0),inQ(s,1)];
+ for(let ax=0;ax<2;ax++){const l=s.ln[ax],bl=s.bl[ax];
+  if(bl.length&&bl[0].tg<=tm){const e=l[l.length-1],g=e?ROADL-e.x-LEN:1e9; // entra solo cuando llegó y hay hueco detrás del último auto
+   if(g>=S0+2){const c=bl.shift();l.push({tg:c.tg,x:ROADL,xp:ROADL,v:Math.min(VMAX,safe(g-S0)),ts:null,c:CC[++s.id%7],br:false})}} // nace con velocidad compatible con su líder (sin teletransporte ni frenazo)
+  for(let i=0;i<l.length;i++){const c=l[i],ld=i?l[i-1]:null;c.xp=c.x;
+   let vs=ld?safe(c.x-ld.x-LEN-S0):1e9; // distancia de seguridad al líder
+   if(c.x>0){const L=lightOf(s,ax),commit=c.x<=c.v*c.v/(2*B); // commit: ya no puede frenar antes de la línea (zona de dilema)
+    if(L=='R'||(L=='A'&&!commit)||busy[1-ax])vs=Math.min(vs,safe(c.x-S0L))} // línea de pare: rojo, ámbar o cruce ocupado por el otro eje
+   const vo=c.v;let v=Math.min(VMAX,vo+AC*dt,vs);v=Math.max(v,vo-BH*dt,0);c.v=v;c.br=v<vo-.4||v<.5;c.x-=v*dt; // frenado limitado a BH: sin paradas instantáneas
+   if(ld&&c.x<ld.x+LEN+1){c.x=ld.x+LEN+1;c.v=Math.min(c.v,ld.v)} // red de seguridad: nunca se solapan
+   if(c.ts==null&&c.x<=0){c.ts=(s.m+1)/SUB;s.srv++;s.cs[ax]++;s.W.push(Math.max(0,c.ts-c.tg-ROADL/VMAX))}} // ESPERA REAL = cruce − generación − tiempo libre
+  while(l.length&&l[0].x<-EXITL)l.shift()} // salen de pantalla recto por la misma calzada
+ s.m++}
+function fin(s){let sum=s.W.reduce((u,v)=>u+v,0),pend=0;const pe=tg=>{sum+=Math.max(0,s.t-tg-ROADL/VMAX);pend++};
+ for(let ax=0;ax<2;ax++){s.bl[ax].forEach(g=>pe(g.tg));s.ln[ax].forEach(c=>{if(c.ts==null)pe(c.tg)})}
+ const n=s.srv+pend;return{w:n?sum/n:0,srv:s.srv,pend}}
+
+// ===== [B4] AGENTES BASE Y REFLEJO =====
+function decide(s,P){
+ const p=s.p,o=1-p,q=s.q;
+ if(s.mode==0)return s.g>=30;                 // Modo base: ciclo fijo 30/30
+ if(s.g<P.minG)return false;                  // verde mínimo (todos los modos)
+ if(s.g>=P.maxG)return true;                  // verde máximo
+ if(s.mode==1){const pq=i=>q[i]+10*s.ema[i];  // Reflejo con estado: cola proyectada = cola + 10 s de tasa observada
+  return(q[p]==0&&q[o]>0)||pq(o)>P.K*pq(p)}   // histéresis K: solo cambia si la otra vía supera K veces a la actual
+ // ===== [B6] HÍBRIDO (modo 3): tasas = w·prior_ML + (1−w)·EMA observada → proactivo; modo 2 usa solo EMA (reactivo)
+ const rate=s.mode==3?[0,1].map(i=>P.w*s.pri[s.ph][i]+(1-P.w)*s.ema[i]):s.ema;
+ return astar(q,p,s.g,rate,P,s.cap,LOST)==1;
+}
+
+// ===== [B5] BÚSQUEDA A* =====
+const PL_={st:2,term:0,pw:4};const cf=v=>v**PL_.pw; // pw>1: costo convexo (penaliza dejar crecer una cola → evita la inanición del eje débil) // st: arranque perdido tras cambiar fase (s) · term: peso del costo terminal (cola que queda al final del horizonte)
+// Nodo = (colas, fase, g, costo, profundidad, primera acción). Acciones: 0 mantener, 1 cambiar (si g≥mínimo).
+// Costo g(n) = Σ cola total por segundo (espera acumulada). h(n)=0 (admisible) ⇒ f=g. Meta: profundidad H/DT. Cola de prioridad = montículo.
+class Heap{constructor(){this.a=[]}push(x){const a=this.a;a.push(x);let i=a.length-1;while(i&&a[i].c<a[(i-1)>>1].c){const j=(i-1)>>1;[a[i],a[j]]=[a[j],a[i]];i=j}}
+ pop(){const a=this.a,t=a[0],l=a.pop();if(a.length){a[0]=l;let i=0;for(;;){let c=2*i+1;if(c+1<a.length&&a[c+1].c<a[c].c)c++;if(c<a.length&&a[c].c<a[i].c){[a[i],a[c]]=[a[c],a[i]];i=c}else break}}return t}get n(){return this.a.length}}
+function astar(q,p,g,rate,P,cap,LO){
+ const D=Math.max(1,Math.round(P.H/DT)),open=new Heap();let n=0;open.push({q:q.slice(),p,g,c:0,d:0,f:0});
+ while(open.n){const x=open.pop();if(x.d==D||++n>2000)return x.f; // meta o tope de nodos (acota el cómputo)
+  for(const a of[0,1]){if(a&&x.g<P.minG)continue;
+   const y={q:x.q.slice(),p:x.p,g:x.g,c:x.c,d:x.d+1,f:x.d?x.f:a};let lost=0;if(a){y.p^=1;y.g=0;lost=LO+PL_.st}
+   for(let k=0;k<DT;k++){if(lost>0)lost--;else{y.g++;y.q[y.p]=Math.max(0,y.q[y.p]-cap[y.p])}y.q[0]+=rate[0];y.q[1]+=rate[1];y.c+=cf(y.q[0])+cf(y.q[1])}
+   if(y.d==D)y.c+=PL_.term*(cf(y.q[0])+cf(y.q[1]));open.push(y)}}
+ return 0}
+
+// ===== [B7] EXPERIMENTOS (30 semillas, mismas llegadas para los 4 modos = números aleatorios comunes) =====
+const P=()=>({minG:V('mg'),maxG:V('xg'),K:V('kk'),H:V('hh'),k:V('kn'),KM:V('km'),w:V('ww')});
+async function runAll(){
+ const p=P();ML=trainML(p.k,p.KM);$('go').disabled=true;let n=0;RES={};const s0=V('s0'),ns=V('ns'),tot=Object.keys(SC).length*4*ns;
+ for(const key in SC){RES[key]=MODES.map(()=>({w:[],m:[],c:[]}));
+  for(let seed=s0;seed<s0+ns;seed++){
+   for(let m=0;m<4;m++){const s=newSim(SC[key],seed,m);while(s.t<T)step(s,p);const o=RES[key][m];o.w.push(fin(s).w);o.m.push(s.mx);o.c.push(s.ms/Math.max(1,s.nd));n++}
+   $('bi').style.width=(100*n/tot)+'%';$('bt').textContent=`${SC[key].n} · semilla ${seed-s0+1}/${ns} (${n}/${tot})`;
+   await new Promise(r=>setTimeout(r))}} // cede el hilo → la barra se repinta, la app no se congela
+ $('go').disabled=false;$('bt').textContent='Listo ✔';table()}
+let sortK=null;
+function table(){const R=RES[$('sc').value];if(!R)return;const b=mean(R[0].w);
+ const rows=R.map((r,i)=>({n:MODES[i],w:mean(r.w),s:sd(r.w),m:mean(r.m),c:mean(r.c),imp:100*(b-mean(r.w))/b,win:r.w.filter((v,j)=>v<R[0].w[j]).length}));
+ if(sortK)rows.sort((a,c)=>sortK=='imp'||sortK=='win'?c[sortK]-a[sortK]:a[sortK]-c[sortK]);
+ const best=Math.min(...rows.map(r=>r.w));
+ $('tb').innerHTML=rows.map(r=>`<tr${r.w==best?' style="background:#10261a"':''}><td>${r.n}</td><td>${r.w.toFixed(2)} ±${r.s.toFixed(2)}</td><td>${r.m.toFixed(1)}</td><td>${r.c.toFixed(3)}</td><td class="${r.imp>=0?'pos':'neg'}">${r.imp>=0?'+':''}${r.imp.toFixed(1)}%</td><td>${r.win}/${R[0].w.length}</td></tr>`).join('');
+ bars('c2',R.map(r=>mean(r.w)),SH)}
+
+// ===== [B8] UI: dibujo, alertas, README =====
+let live,run=false,acc=0,last=0,view=0,bsims=[],alpha=0;
+const reset=()=>{const sc=SC[$('sc').value];live=newSim(sc,V('s0'),V('md'));bsims=[0,1,2].map(i=>newSim(sc,V('bs'),+$('bm'+i).value));acc=0;run=false;setBtn();info()};
+function fit(c){const d=Math.min(2,window.devicePixelRatio||1),w=Math.round(c.clientWidth*d);if(!w)return 0;if(c.width!==w||c.height!==w){c.width=w;c.height=w}return w/WORLD} // lienzo nítido: resolución = tamaño en pantalla; escala uniforme
+const rr=(x,a,b,w,h,r)=>{x.beginPath();x.roundRect?x.roundRect(a,b,w,h,r):x.rect(a,b,w,h)};
+function draw(c,s){const k=fit(c);if(!k)return;const x=c.getContext('2d'),cx=HALF,cy=HALF,fs=Math.max(12,9.5/k);
+ x.setTransform(k,0,0,k,0,0);x.clearRect(0,0,WORLD,WORLD);x.fillStyle='#101a2c';x.fillRect(0,0,WORLD,WORLD);
+ x.fillStyle='#1a2740';[[0,0],[cx+LW,0],[0,cy+LW],[cx+LW,cy+LW]].forEach(([a,b])=>x.fillRect(a+4,b+4,cx-LW-8,cy-LW-8)); // manzanas
+ x.fillStyle='#252f40';x.fillRect(0,cy-LW,WORLD,2*LW);x.fillRect(cx-LW,0,2*LW,WORLD); // calzadas
+ x.fillStyle='rgba(245,158,11,.10)';x.fillRect(cx-LW,cy,LW,LW); // cuadrado de cruce Q
+ x.globalAlpha=.35;x.strokeStyle='#e6edf7';x.lineWidth=1.5;x.beginPath();
+ [cy-LW,cy+LW].forEach(y=>{x.moveTo(0,y);x.lineTo(cx-LW,y);x.moveTo(cx+LW,y);x.lineTo(WORLD,y)});[cx-LW,cx+LW].forEach(X=>{x.moveTo(X,0);x.lineTo(X,cy-LW);x.moveTo(X,cy+LW);x.lineTo(X,WORLD)});x.stroke();x.globalAlpha=1;
+ x.strokeStyle='#facc15';x.lineWidth=2;x.beginPath();x.moveTo(0,cy);x.lineTo(cx-LW,cy);x.moveTo(cx+LW,cy);x.lineTo(WORLD,cy);x.moveTo(cx,0);x.lineTo(cx,cy-LW);x.moveTo(cx,cy+LW);x.lineTo(cx,WORLD);x.stroke();
+ x.strokeStyle='#fff';x.lineWidth=3;x.beginPath();x.moveTo(SL,cy+1);x.lineTo(SL,cy+LW);x.moveTo(cx-LW,SL);x.lineTo(cx-1,SL);x.stroke(); // líneas de pare
+ x.fillStyle='rgba(230,237,247,.16)';[100*U,170*U].forEach(d=>{let X=SL-d,Y=cy+LW/2;x.save();x.translate(X,Y);x.scale(U,U);x.beginPath();x.moveTo(7,0);x.lineTo(-5,-6);x.lineTo(-5,6);x.fill();x.restore();X=cx-LW/2;Y=SL-d;x.save();x.translate(X,Y);x.scale(U,U);x.beginPath();x.moveTo(0,7);x.lineTo(-6,-5);x.lineTo(6,-5);x.fill();x.restore()});
+ const lamp=(ax,px,py)=>{const L=lightOf(s,ax);x.save();x.translate(px,py);x.scale(U,U);x.fillStyle='#0b1220';rr(x,0,0,14,38,4);x.fill();['R','A','G'].forEach((q,i)=>{const on=L==q,col={R:'#ef4444',A:'#f59e0b',G:'#22c55e'}[q];x.fillStyle=on?col:'#2a3347';x.shadowColor=col;x.shadowBlur=on?14:0;x.beginPath();x.arc(7,7+i*11.5,4,0,7);x.fill()});x.restore()};
+ lamp(0,SL-26*U,cy+LW+6*U);lamp(1,cx-LW-24*U,SL-44*U);
+ for(let ax=0;ax<2;ax++)s.ln[ax].forEach(v=>{const F=SL-(v.xp+(v.x-v.xp)*alpha); // frente del auto (posición interpolada entre micro-pasos → movimiento fluido)
+  x.fillStyle=v.c;
+  x.save();if(ax==0){x.translate(F,cy+LW/2);x.scale(U,U);rr(x,-20,-6.5,20,13,3);x.fill();x.fillStyle='rgba(0,0,0,.45)';x.fillRect(-8,-4.5,4,9);x.fillStyle='#fef3c7';x.fillRect(-1.5,-5.5,1.5,3);x.fillRect(-1.5,2.5,1.5,3);x.fillStyle=v.br?'#ef4444':'#7f1d1d';x.fillRect(-20,-5.5,1.8,3);x.fillRect(-20,2.5,1.8,3)}
+  else{x.translate(cx-LW/2,F);x.scale(U,U);rr(x,-6.5,-20,13,20,3);x.fill();x.fillStyle='rgba(0,0,0,.45)';x.fillRect(-4.5,-8,9,4);x.fillStyle='#fef3c7';x.fillRect(-5.5,-1.5,3,1.5);x.fillRect(2.5,-1.5,3,1.5);x.fillStyle=v.br?'#ef4444':'#7f1d1d';x.fillRect(-5.5,-20,3,1.8);x.fillRect(2.5,-20,3,1.8)}x.restore()});
+ x.font='600 '+fs+'px system-ui';x.fillStyle='#e6edf7';x.textAlign='left';x.fillText(`Javier Prado · cola ${s.q[0]}`,10,22);x.textAlign='left';x.fillText(`Transversal · cola ${s.q[1]}`,cx+LW+10,22);
+ x.font=fs*.9+'px system-ui';x.fillStyle='#8ea0bd';if(s.bl[0].length)x.fillText(`+${s.bl[0].length} fuera de pantalla ▸`,10,cy+LW+20);if(s.bl[1].length){x.textAlign='right';x.fillText(`+${s.bl[1].length} fuera ▾`,cx-LW-10,44);x.textAlign='left'}
+ x.fillText(s.t>=T?'Simulación terminada':s.lost?`Ámbar / todo-rojo ${s.lost} s`:`Verde ${s.p?'Transversal':'Javier Prado'}: ${s.g}/${V('xg')} s`,10,WORLD-12)}
+function line(id,a){const c=$(id),x=c.getContext('2d');x.clearRect(0,0,c.width,c.height);if(a.length<2)return;const m=Math.max(5,...a);x.strokeStyle='#38bdf8';x.lineWidth=2;x.beginPath();a.forEach((v,i)=>{const X=i/(a.length-1)*c.width,Y=c.height-4-v/m*(c.height-24);i?x.lineTo(X,Y):x.moveTo(X,Y)});x.stroke();x.fillStyle='#8ea0bd';x.fillText('cola total (máx '+Math.round(m)+')',6,12)}
+function bars(id,v,l){const c=$(id),x=c.getContext('2d');x.clearRect(0,0,c.width,c.height);const m=Math.max(...v),w=c.width/v.length;x.textAlign='center';x.font='13px system-ui';v.forEach((y,i)=>{const h=y/m*(c.height-50);x.fillStyle=['#64748b','#38bdf8','#22c55e','#a78bfa'][i];x.fillRect(i*w+20,c.height-22-h,w-40,h);x.fillStyle='#e6edf7';x.fillText(y.toFixed(1)+' s',i*w+w/2,c.height-26-h);x.fillText(l[i],i*w+w/2,c.height-6)});x.textAlign='left'}
+const setBtn=()=>{$('st').textContent=$('bst').textContent=run?'⏸ Pausar':'▶ Iniciar'};
+function info(){const sc=SC[$('sc').value];$('dm').innerHTML=`<b>${sc.n}</b> · ${sc.x}<br>λ EO/T = ${sc.l.join(' / ')} veh/s = ${sc.l.map(v=>(v*3600).toFixed(0)).join(' / ')} veh/h${sc.l2?`<br>Desde ${sc.t2} s: λ = ${sc.l2.join(' / ')}`:''}<br>Entrada del ML: hora ${sc.h}${sc.h2?'→'+sc.h2:''}, día ${sc.d}`}
+const kpis=(s,f)=>`<div><b>${f.w.toFixed(1)} s</b>espera media</div><div><b>${s.mx}</b>cola máx.</div><div><b>${f.srv}</b>atendidos</div><div><b>${s.sw}</b>cambios de fase</div>`;
+function frame(){if(view==0){draw($('cv'),live);const f=fin(live);$('k1').textContent=Math.floor(live.t)+' s';$('k2').textContent=live.lost?'ÁMBAR':(live.p?'T':'EO');$('k3').textContent=f.w.toFixed(1)+' s';$('k4').textContent=live.mx+' · '+f.srv+' at.';line('c1',live.hist)}
+ else bsims.forEach((s,i)=>{draw($('bc'+i),s);$('bk'+i).innerHTML=kpis(s,fin(s))})}
+function loop(ts){const dt=Math.min(.1,(ts-last)/1000);last=ts;if(run){acc+=dt*V('sp')*SUB;const pp=P(),L=view?bsims:[live];let n=0;while(acc>=1&&L[0].t<T&&n++<4000){L.forEach(s=>step(s,pp));acc--}if(L[0].t>=T){run=false;acc=0;setBtn()}}alpha=Math.min(1,acc);frame();requestAnimationFrame(loop)}
+function retrain(){const p=P();ML=trainML(p.k,p.KM);
+ $('ml').innerHTML=`<b>Regresión KNN</b> (k=${p.k}) · MAE hold-out: <b>${ML.mae.toFixed(3)}</b> veh/s<br>`+Object.values(SC).map(s=>`${s.n} (hora ${s.h}, día ${s.d}): predicho [${ML.predict(s.h,s.d).map(v=>v.toFixed(2))}] · real [${s.l}] → perfil <b>${ML.lab[near(ML.predict(s.h,s.d),ML.C)]}</b>`).join('<br>')+`<br><b>K-Means</b> (K=${p.KM}): `+ML.C.map((c,i)=>`${ML.lab[i]} [${c.map(v=>v.toFixed(2))}]`).join(' · ')}
+function alerts(){const p=P(),a=[];
+ if(p.minG>=p.maxG)a.push('Verde mínimo ≥ máximo: el agente no podrá cambiar de fase.');
+ if(p.K<1.1)a.push('K bajo → cambios de fase frecuentes (cada cambio pierde 3 s).');
+ if(p.K>2)a.push('K alto → el reflejo reacciona tarde; la vía débil acumulará cola.');
+ if(p.H<20)a.push('Horizonte A* corto: planificación miope, no amortiza el costo de cambiar.');
+ if(p.H>=50)a.push('Horizonte ≥50 s: hasta ~2000 nodos por decisión → cómputo alto (la corrida masiva tardará).');
+ if(p.k==1)a.push('k=1: sobreajuste al ruido histórico.');if(p.k>12)a.push('k>12: suaviza demasiado las puntas.');
+ if(p.KM<3)a.push('K<3: no se separan Valle / Punta Mañana / Punta Tarde.');if(p.KM>4)a.push('K>4: clústeres redundantes con los mismos 3 perfiles.');
+ if(p.w==0)a.push('Peso ML=0: el híbrido equivale a A* reactivo.');if(p.w==1)a.push('Peso ML=1: ignora la demanda real observada.');
+ if(p.maxG<30)a.push('Verde máximo <30 s: puede empeorar frente al base en punta asimétrica.');
+ $('al').innerHTML=a.length?a.map(t=>`<div class="al">⚠ ${t}</div>`).join(''):'<div class="al ok">✔ Configuración razonable.</div>'}
+function readme(){const rs=Object.keys(RES).map(k=>{const R=RES[k],b=mean(R[0].w);return`### ${SC[k].n}\n\n| Técnica | Espera media (s) | Cola máx. | Cómputo (ms) | Mejora vs base |\n|---|---|---|---|---|\n`+R.map((r,i)=>`| ${MODES[i]} | ${mean(r.w).toFixed(2)} | ${mean(r.m).toFixed(1)} | ${mean(r.c).toFixed(3)} | ${(100*(b-mean(r.w))/b).toFixed(1)}% |`).join('\n')}).join('\n\n')||'_Corre las 30 semillas y vuelve a descargar._',p=P();
+ const t=`# Simulador de Semáforo y Control de Tráfico — Av. Javier Prado\n\nCurso: Agentes Inteligentes · USIL 2026\n\n## Integrantes\n- Renato Paolo Peña Reyna\n- Dylan Mijhael Stefano Cornelio Solis\n- Joaquin Rodrigo Vera Chavez\n\n## Definición del problema\nControlar un cruce crítico de dos ejes (Av. Javier Prado y transversal) para minimizar la espera media por vehículo y la cola máxima. Entorno estocástico (llegadas Poisson), parcialmente observable (colas y llegadas), acciones: mantener/cambiar fase (3 s de pérdida por cambio).\n\n## PEAS\n- **Performance:** espera media, cola máxima, cómputo por decisión.\n- **Environment:** cruce de 2 ejes, 4 escenarios (Valle, Punta simétrica, Punta asimétrica, Transición).\n- **Actuators:** mantener fase / cambiar fase.\n- **Sensors:** longitud de cola por eje, llegadas por segundo.\n\n## Técnicas comparadas\n1. Modo base: 30/30 s fijos.\n2. Agente reflejo con estado interno (EMA de llegadas, histéresis K).\n3. Búsqueda A* (costo = espera acumulada, h=0 admisible, horizonte H).\n4. Híbrido basado en utilidad + ML: KNN predice demanda por hora/día, K-Means asigna perfil de tráfico y ambos alimentan la planificación A*.\n\nHiperparámetros usados: verde mín ${p.minG}s, máx ${p.maxG}s, K=${p.K}, H=${p.H}s, k(KNN)=${p.k}, clústeres=${p.KM}, peso ML=${p.w}, un carril por eje, todos los vehículos siguen recto.\n\n## Resultados (30 semillas, mismas llegadas para todos los modos)\n\n${rs}\n\n## Declaración de uso de IA\nSe utilizó Claude (Anthropic) como asistente para generar y refactorizar código y documentación. El equipo revisó, ejecutó y comprende el código y asume la responsabilidad del contenido, conforme a las normas de la USIL.\n`;
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:'text/markdown'}));a.download='README.md';a.click()}
+$('bt3').innerHTML=[0,1,2].map(i=>`<div class="card"><select id="bm${i}">${MODES.map((m,j)=>`<option value="${j}"${j==i?' selected':''}>${m}</option>`).join('')}</select><canvas id="bc${i}" width="800" height="800"></canvas><div class="kp" id="bk${i}" style="margin:8px 0 0"></div></div>`).join('');
+$('bsc').innerHTML=$('sc').innerHTML;$('bsc').value=$('sc').value;
+document.querySelectorAll('input,select').forEach(e=>e.addEventListener('input',()=>{alerts();
+ if(e.id=='sc')$('bsc').value=e.value;if(e.id=='bsc')$('sc').value=e.value;if(e.id=='sp')$('bsp').value=e.value;if(e.id=='bsp')$('sp').value=e.value;
+ if(e.id=='kn'||e.id=='km'){retrain();reset()}if(/^(sc|bsc|md|bs|bm\d|s0)$/.test(e.id))reset();if(e.id=='sc'||e.id=='bsc')table()}));
+const setView=v=>{view=v;$('v1').hidden=!!v;$('v2').hidden=!v;document.body.classList.toggle('wide',!!v);document.querySelector('aside').hidden=!!v;run=false;setBtn()}; // en Enfrentamiento los parámetros pasan a un panel lateral desplegable
+$('st').onclick=$('bst').onclick=()=>{run=!run;setBtn()};$('rs').onclick=$('brs').onclick=reset;$('t1').onclick=()=>setView(0);$('t2').onclick=()=>setView(1);$('bpar').onclick=()=>{const a=document.querySelector('aside');a.hidden=!a.hidden};$('cl').onclick=()=>{document.querySelector('aside').hidden=true};$('go').onclick=runAll;$('rd').onclick=readme;
+document.querySelectorAll('th[data-k]').forEach(h=>h.onclick=()=>{sortK=h.dataset.k;table()});
+retrain();reset();alerts();requestAnimationFrame(loop);
+</script></body></html>
